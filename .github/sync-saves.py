@@ -51,7 +51,8 @@ def metadata(issue):
     urls = ATTACHMENT.findall(fields.get("Save ZIP", ""))
     if (not re.fullmatch(r"(?:CUSA|PPSA)\d{5}", title) or not 0 < len(description) <= 240
             or re.search(r"[\x00-\x1f\x7f]", description) or len(urls) != 1
-            or "- [x] I have permission to share this save publicly." not in fields.get("Public sharing", "")):
+            or not re.search(r"^- \[[xX]\] I have permission to share this save publicly\.$",
+                             fields.get("Public sharing", "").strip(), re.M)):
         raise ValueError("Missing title ID, description, consent, or one ZIP")
     return title, description, urls[0]
 
