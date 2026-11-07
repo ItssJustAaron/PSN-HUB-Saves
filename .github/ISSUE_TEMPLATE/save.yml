@@ -20,7 +20,7 @@ body:
     id: attachment
     attributes:
       label: Save ZIP
-      description: Attach one ZIP under 25 MB. Manager can prepare a ZIP for one save or all saves for a game. If Manager splits the saves, submit each ZIP separately.
+      description: Attach the ZIP Manager prepared. For a large single save, attach every numbered part to this same issue. For separate batches of save slots, open one issue per batch.
     validations:
       required: true
   - type: checkboxes
