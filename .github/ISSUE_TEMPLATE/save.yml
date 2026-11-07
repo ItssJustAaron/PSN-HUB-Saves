@@ -20,7 +20,7 @@ body:
     id: attachment
     attributes:
       label: Save ZIP
-      description: Attach one ZIP under 25 MB containing image.bin and, for PS4, key.bin. Manager can prepare this ZIP for you.
+      description: Attach one ZIP under 25 MB. Manager can prepare a ZIP for one save or all saves for a game. If Manager splits the saves, submit each ZIP separately.
     validations:
       required: true
   - type: checkboxes

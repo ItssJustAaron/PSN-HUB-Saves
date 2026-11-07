@@ -12,6 +12,8 @@ from zipfile import BadZipFile, ZipFile
 
 LIMIT = 25_000_000
 MAX_SAVES = 40
+MAX_SLOTS = 128
+SLOT_ENTRY = re.compile(r"slots/([1-9][0-9]{0,2})/(image\.bin|key\.bin|name\.txt)")
 ATTACHMENT = re.compile(r"https://github\.com/user-attachments/files/\d+/[A-Za-z0-9_.%~-]+\.zip")
 REDIRECT_HOSTS = {"github.com", "objects.githubusercontent.com",
                   "user-images.githubusercontent.com", "github-production-user-asset-6210df.s3.amazonaws.com",
@@ -31,16 +33,49 @@ def package(url, platform):
         content = response.read(LIMIT + 1)
     if len(content) > LIMIT:
         raise ValueError("ZIP exceeds the attachment limit")
+    return unpack(content, platform)
+
+
+def unpack(content, platform):
+    expected = {"image.bin", "key.bin"} if platform == "ps4" else {"image.bin"}
     with ZipFile(io.BytesIO(content)) as archive:
-        expected = {"image.bin", "key.bin"} if platform == "ps4" else {"image.bin"}
         entries = archive.infolist()
-        if len(entries) != len(expected) or {item.filename for item in entries} != expected:
-            raise ValueError("ZIP needs image.bin and a key.bin only for PS4")
-        if sum(item.file_size for item in entries) > LIMIT or not archive.getinfo("image.bin").file_size:
-            raise ValueError("Save exceeds the unpacked size limit or is empty")
-        if platform == "ps4" and archive.getinfo("key.bin").file_size != 96:
-            raise ValueError("PS4 key must be 96 bytes")
-        return (archive.read("key.bin") if platform == "ps4" else b"") + archive.read("image.bin")
+        names = {item.filename for item in entries}
+        if not entries or len(names) != len(entries) or sum(item.file_size for item in entries) > LIMIT:
+            raise ValueError("Invalid ZIP entries or unpacked size")
+
+        def read_slot(prefix):
+            if not archive.getinfo(prefix + "image.bin").file_size:
+                raise ValueError("Save image is empty")
+            key = b""
+            if platform == "ps4":
+                if archive.getinfo(prefix + "key.bin").file_size != 96:
+                    raise ValueError("PS4 key must be 96 bytes")
+                key = archive.read(prefix + "key.bin")
+            return key + archive.read(prefix + "image.bin")
+
+        if names == expected:
+            return [(None, None, read_slot(""))]
+        slots = {}
+        for name in names:
+            match = SLOT_ENTRY.fullmatch(name)
+            if not match or int(match[1]) > MAX_SLOTS:
+                raise ValueError("Invalid slot path")
+            slots.setdefault(int(match[1]), set()).add(match[2])
+        result = []
+        for slot, files in sorted(slots.items()):
+            prefix = f"slots/{slot}/"
+            if files != expected | {"name.txt"} or not 0 < archive.getinfo(prefix + "name.txt").file_size <= 256:
+                raise ValueError("Incomplete slot or invalid name length")
+            name = archive.read(prefix + "name.txt").decode("utf-8")
+            if not name.strip() or re.search(r"[\x00-\x1f\x7f]", name):
+                raise ValueError("Invalid slot name")
+            result.append((slot, name, read_slot(prefix)))
+        return result
+
+
+def filename(issue, slot=None):
+    return f"{issue}.bin" if slot is None else f"{issue}-{slot}.bin"
 
 
 def metadata(issue):
@@ -61,10 +96,13 @@ def sync():
     base = "https://api.github.com/repos/ItssJustAaron/PSN-HUB-Saves/issues"
     headers = {"Authorization": "Bearer " + os.environ["GH_TOKEN"], "Accept": "application/vnd.github+json"}
     catalogue = Path("catalog.json")
-    old = {item["issue"]: item for item in json.loads(catalogue.read_text(encoding="utf-8-sig"))["items"]}
+    old = {}
+    for item in json.loads(catalogue.read_text(encoding="utf-8-sig"))["items"]:
+        old.setdefault(item["issue"], []).append(item)
     folder = Path("saves")
     folder.mkdir(exist_ok=True)
     items = []
+    published = 0
     for page in range(1, 11):
         request = Request(f"{base}?state=open&sort=created&direction=asc&per_page=100&page={page}", headers=headers)
         with urlopen(request, timeout=20) as response:
@@ -76,24 +114,30 @@ def sync():
             try:
                 title, description, attachment = metadata(issue)
                 platform = "ps4" if title.startswith("CUSA") else "ps5"
-                file = folder / f"{number}.bin"
-                previous = old.get(number, {})
-                if previous.get("attachment") == attachment and previous.get("platform") == platform and file.is_file():
-                    data = file.read_bytes()
+                previous = old.get(number, [])
+                if previous and all(item["attachment"] == attachment and item["platform"] == platform
+                                    and (folder / filename(number, item.get("slot"))).is_file() for item in previous):
+                    items.extend(dict(item, title=title, description=description) for item in previous)
                 else:
-                    data = package(attachment, platform)
-                    file.write_bytes(data)
-                items.append(dict(issue=number, title=title, description=description, platform=platform,
-                                  attachment=attachment, bytes=len(data), sha256=hashlib.sha256(data).hexdigest()))
+                    submitted = []
+                    for slot, name, data in package(attachment, platform):
+                        (folder / filename(number, slot)).write_bytes(data)
+                        item = dict(issue=number, title=title, description=description, platform=platform,
+                                    attachment=attachment, bytes=len(data), sha256=hashlib.sha256(data).hexdigest())
+                        if slot is not None:
+                            item.update(slot=slot, slotName=name)
+                        submitted.append(item)
+                    items.extend(submitted)
+                published += 1
             except (OSError, ValueError, BadZipFile, RuntimeError, NotImplementedError):
                 print(f"Issue #{number} has no usable save package.")
-            if len(items) == MAX_SAVES:
+            if published == MAX_SAVES:
                 break
-        if len(issues) < 100 or len(items) == MAX_SAVES:
+        if len(issues) < 100 or published == MAX_SAVES:
             break
-    active = {str(item["issue"]) for item in items}
+    active = {filename(item["issue"], item.get("slot")) for item in items}
     for file in folder.glob("*.bin"):
-        if file.stem.isdecimal() and file.stem not in active:
+        if re.fullmatch(r"\d+(?:-\d+)?", file.stem) and file.name not in active:
             file.unlink()
     catalogue.write_text(json.dumps({"schemaVersion": 1, "items": items}, indent=2) + "\n", encoding="utf-8")
 
