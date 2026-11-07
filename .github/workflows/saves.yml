@@ -1,0 +1,32 @@
+name: Publish community saves
+on:
+  issues:
+    types: [opened, edited, reopened, closed, deleted]
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/sync-saves.py', '.github/workflows/saves.yml']
+concurrency:
+  group: community-save-catalogue
+  cancel-in-progress: false
+permissions:
+  contents: write
+  issues: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: main
+      - name: Reconcile public submissions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/sync-saves.py
+      - name: Publish catalogue and save files
+        run: |
+          git add -- catalog.json saves/
+          git diff --cached --quiet && exit 0
+          git -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com commit -m "Update community saves"
+          git push origin HEAD:main

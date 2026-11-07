@@ -1,0 +1,32 @@
+name: Share a save
+description: Publish an encrypted PS4 or PS5 save for the community.
+title: "[Save] "
+body:
+  - type: input
+    id: title-id
+    attributes:
+      label: Title ID
+      placeholder: PPSA12345 or CUSA12345
+    validations:
+      required: true
+  - type: input
+    id: description
+    attributes:
+      label: Description
+      description: Describe the game and what this save contains in 240 characters or fewer.
+    validations:
+      required: true
+  - type: textarea
+    id: attachment
+    attributes:
+      label: Save ZIP
+      description: Attach one ZIP under 25 MB containing image.bin and, for PS4, key.bin. Manager can prepare this ZIP for you.
+    validations:
+      required: true
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Public sharing
+      options:
+        - label: I have permission to share this save publicly.
+          required: true

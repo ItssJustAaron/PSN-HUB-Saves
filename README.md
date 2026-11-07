@@ -2,10 +2,10 @@
 
 Public downloads for approved PS4 and PS5 saves shared through PSN-HUB Community Saves.
 
-[Browse and download approved saves](https://github.com/ItssJustAaron/PSN-HUB-Saves/releases)
+[Upload a save](https://github.com/ItssJustAaron/PSN-HUB-Saves/issues/new?template=save.yml) · [Browse saves](https://github.com/ItssJustAaron/PSN-HUB-Saves/issues) · [Existing release downloads](https://github.com/ItssJustAaron/PSN-HUB-Saves/releases)
 
-Players can select a save from their PS5 in **PSN-HUB Manager → Community Saves**, or upload their encrypted save files from a PC. Each submission needs a description and permission to share it publicly. After a reviewer approves it, a configured Community Saves server publishes it as a release here.
+In **PSN-HUB Manager → Community Saves**, select a save from your PS5 or choose encrypted files from your PC. Select **Prepare ZIP for GitHub**, download the ZIP, and attach it in the GitHub form. GitHub sign-in is required to submit. Each submission needs a title ID, description, permission to share publicly, and a ZIP under 25 MB.
 
-Each release identifies the platform and title ID. Download the save image, plus the companion key for PS4. To install the save, open **Saves → Advanced save tools** in PSN-HUB Manager and select the platform and receiving console user.
+Open issues with a valid attachment appear in Manager after GitHub finishes processing them. Choose **Install & resign**, select a console user, and confirm the staged import. You can also download the ZIP directly from the issue.
 
 [Community Saves setup and publishing guide](https://github.com/ItssJustAaron/PSN-HUB2/blob/main/Manager/COMMUNITY-SAVES.md)
